@@ -90,7 +90,7 @@
       <div class="field"><label>Latitude</label><input id="lat" type="number" step="0.0001" value="50.5400" /></div>
       <div class="field"><label>Longitude</label><input id="lon" type="number" step="0.0001" value="-4.9400" /></div>
       <div class="field"><label>Start Date</label><input id="startDate" type="date" value="2025-01-01" /></div>
-      <div class="field"><label>End Date</label><input id="endDate" type="date" value="2025-12-31" /></div>
+      <div class="field"><label>End Date</label><input id="endDate" type="date" value="2025-01-31" /></div>
       <div class="field">
         <label>View Mode</label>
         <select id="viewMode">
@@ -859,22 +859,30 @@ function makeSurveyTideMarkers(surveyDates, yValue, start, end) {
   }
 
   async function loadData() {
-    try {
-      setStatus("Loading weather and tide…");
+  try {
+    setStatus("Loading weather and tide…");
 
-      const lat = document.getElementById("lat")?.value?.trim() || "50.5400";
-      const lon = document.getElementById("lon")?.value?.trim() || "-4.9400";
-      const start = document.getElementById("startDate")?.value;
-      const end = document.getElementById("endDate")?.value;
-      const mode = document.getElementById("viewMode")?.value || "monthly";
-      const surveyDates = parseSurveyDates();
+    const lat = document.getElementById("lat")?.value?.trim() || "50.5400";
+    const lon = document.getElementById("lon")?.value?.trim() || "-4.9400";
+    const start = document.getElementById("startDate")?.value;
+    const end = document.getElementById("endDate")?.value;
+    const mode = document.getElementById("viewMode")?.value || "monthly";
+    const surveyDates = parseSurveyDates();
 
-      if (!start || !end) throw new Error("Missing start or end date.");
+    if (!start || !end) throw new Error("Missing start or end date.");
 
-      const [weatherRaw, tidePayload] = await Promise.all([
-        fetchWeather(lat, lon, start, end),
-        fetchHybridTides(start, end, lat, lon)
-      ]);
+    const startObj = new Date(start + "T00:00:00Z");
+    const endObj = new Date(end + "T00:00:00Z");
+    const rangeDays = Math.round((endObj - startObj) / 86400000) + 1;
+
+    if (rangeDays > 31) {
+      throw new Error("Please choose a date range of 31 days or less for tide loading.");
+    }
+
+    const [weatherRaw, tidePayload] = await Promise.all([
+      fetchWeather(lat, lon, start, end),
+      fetchHybridTides(start, end, lat, lon)
+    ]);
 
       const tideReadings = tidePayload.items;
 
