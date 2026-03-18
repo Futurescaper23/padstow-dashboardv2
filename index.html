@@ -103,6 +103,44 @@
     .legend-swatch{ width:14px; height:14px; border-radius:4px; border:1px solid rgba(255,255,255,.18); }
     @media (max-width: 1200px){ .controls{ grid-template-columns: repeat(4, 1fr); } .summary-grid{ grid-template-columns: repeat(3, 1fr); } .layout{ grid-template-columns: 1fr; } }
     @media (max-width: 760px){ .controls{ grid-template-columns: repeat(2, 1fr); } .summary-grid{ grid-template-columns: repeat(2, 1fr); } .event{ grid-template-columns: 1fr; } }
+   .side-list{
+  display:grid;
+  gap:12px;
+}
+
+.side-item{
+  padding:14px 15px;
+  border-radius:16px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(125,211,252,.08);
+}
+
+.side-item-title{
+  font-size:14px;
+  font-weight:800;
+  color:#eef4ff;
+  margin-bottom:6px;
+  letter-spacing:-0.01em;
+}
+
+.side-item-meta{
+  font-size:12px;
+  color:#7dd3fc;
+  margin-bottom:8px;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
+.side-item-body{
+  font-size:13px;
+  line-height:1.55;
+  color:#d9e6fb;
+}
+
+.side-highlight{
+  color:#ffffff;
+  font-weight:700;
+}
   </style>
 </head>
 <body>
@@ -182,22 +220,22 @@
 
       <div class="stack">
         <div class="card">
-          <div class="panel-title"><h2>Survey Window Summary</h2><div class="small">Interpretation notes for reporting and 3DVista embedding</div></div>
+          <div class="panel-title"><h2>Survey Intelligence</h2><div class="small">Key interpretation notes for reporting and presentation</div></div>
           <div id="insights" class="insights">Load data to generate insight notes.</div>
           <div class="pill-row" id="surveyPills"></div>
         </div>
         <div class="card">
-          <div class="panel-title"><h2>Environmental Timeline</h2><div class="small">Largest events and likely sediment drivers</div></div>
+          <div class="panel-title"><h2>Key Events</h2><div class="small">Highest-impact weather and tidal markers</div></div>
           <div id="timeline" class="timeline"></div>
         </div>
         <div class="card">
-          <div class="panel-title"><h2>Tide Events</h2><div class="small">Detected highs/lows and spring-neap context</div></div>
+          <div class="panel-title"><h2>Tide Intelligence</h2><div class="small">Most useful tidal context from the selected period</div></div>
           <div id="tideEvents" class="insights">Load data to generate tide event notes.</div>
         </div>
         <div class="card">
           <div class="panel-title"><h2>Intelligence Notes</h2><div class="small">Current interpretation setup</div></div>
-<div class="insights" id="dashboardNotes">This interface combines weather context, tide behaviour and survey timing to support interpretation of sediment movement and estuary change.
-Tide state is classified from range behaviour across the selected date window, with survey timing matched against the nearest low-tide conditions.</div>
+<div class="insights" id="dashboardNotes">This interface combines tide, weather and survey timing to support interpretation of sediment movement and estuary change.
+Survey dates are matched against the nearest low-tide conditions, with tide state estimated from range behaviour across the selected period.</div>
 <div class="footer-note">FutureScaping Ltd. | Estuary intelligence derived from weather, tide and survey context.</div>
         </div>
       </div>
@@ -662,12 +700,11 @@ Tide state is classified from range behaviour across the selected date window, w
   const pills = document.getElementById("surveyPills");
   pills.innerHTML = "";
 
-  const lines = [];
+  const blocks = [];
 
   surveyDates.forEach(date => {
     const idx = daily.labels.indexOf(date);
-    const inRange = idx >= 0;
-    if (!inRange) return;
+    if (idx < 0) return;
 
     const rain7 = sum(daily.rain.slice(Math.max(0, idx - 6), idx + 1));
     const gust7 = max(daily.gustMax.slice(Math.max(0, idx - 6), idx + 1));
@@ -689,15 +726,19 @@ Tide state is classified from range behaviour across the selected date window, w
     else if ((rain7 ?? 0) >= 20) contextTag = "Wet lead-in period";
     else if ((gust7 ?? 0) < 20 && (rain7 ?? 0) < 5) contextTag = "Calm settled period";
 
-    lines.push(
-      `<div class="insight-block"><strong>Survey ${date}</strong><br>` +
-      `${tideState} tide · ${contextTag}<br>` +
-      `7-day rainfall: ${fmt(rain7,1)} mm<br>` +
-      `Peak gust: ${fmt(gust7,1)} km/h<br>` +
-      `Lowest pressure: ${fmt(lowP7,1)} hPa<br>` +
-      `Daily tidal range: ${tideDay ? fmt(tideDay.range,2) : "—"} m<br>` +
-      `Nearest low tide: ${lowText}</div>`
-    );
+    blocks.push(`
+      <div class="side-item">
+        <div class="side-item-title">Survey ${date}</div>
+        <div class="side-item-meta">${tideState} tide · ${contextTag}</div>
+        <div class="side-item-body">
+          <span class="side-highlight">7-day rainfall:</span> ${fmt(rain7,1)} mm<br>
+          <span class="side-highlight">Peak gust:</span> ${fmt(gust7,1)} km/h<br>
+          <span class="side-highlight">Lowest pressure:</span> ${fmt(lowP7,1)} hPa<br>
+          <span class="side-highlight">Tidal range:</span> ${tideDay ? fmt(tideDay.range,2) : "—"} m<br>
+          <span class="side-highlight">Nearest low tide:</span> ${lowText}
+        </div>
+      </div>
+    `);
 
     const pill = document.createElement("span");
     pill.className = "pill";
@@ -706,72 +747,96 @@ Tide state is classified from range behaviour across the selected date window, w
   });
 
   document.getElementById("insights").innerHTML =
-    lines.length ? lines.join("") : "No survey dates found in selected range.";
+    blocks.length ? `<div class="side-list">${blocks.join("")}</div>` : "No survey dates found in selected range.";
 }
 
   function updateTimeline(daily, dailyTides) {
-    const events = [];
+  const events = [];
 
-    const wetIdx = daily.rain.indexOf(max(daily.rain));
-    if (wetIdx !== -1) {
-      events.push({
-        date: daily.labels[wetIdx],
-        desc: `Wettest day with ${fmt(daily.rain[wetIdx],1)} mm rainfall. Potential runoff and sediment-input marker.`
-      });
-    }
-
-    const gustIdx = daily.gustMax.indexOf(max(daily.gustMax));
-    if (gustIdx !== -1) {
-      events.push({
-        date: daily.labels[gustIdx],
-        desc: `Strongest gust day with ${fmt(daily.gustMax[gustIdx],1)} km/h. Useful wind-energy marker.`
-      });
-    }
-
-    const lowPIdx = daily.pressureMin.indexOf(min(daily.pressureMin));
-    if (lowPIdx !== -1) {
-      events.push({
-        date: daily.labels[lowPIdx],
-        desc: `Lowest pressure day at ${fmt(daily.pressureMin[lowPIdx],1)} hPa. Likely storm-system marker.`
-      });
-    }
-
-    const rangeVals = dailyTides.map(d => d.range);
-    const maxRangeIdx = rangeVals.indexOf(max(rangeVals));
-    if (maxRangeIdx !== -1) {
-      events.push({
-        date: dailyTides[maxRangeIdx].day,
-        desc: `Largest daily tidal range of ${fmt(dailyTides[maxRangeIdx].range,2)} m.`
-      });
-    }
-
-    const timeline = document.getElementById("timeline");
-    timeline.innerHTML = "";
-
-    events.forEach(evt => {
-      const el = document.createElement("div");
-      el.className = "event";
-      el.innerHTML = `<div class="date">${evt.date}</div><div class="desc">${evt.desc}</div>`;
-      timeline.appendChild(el);
+  const wetIdx = daily.rain.indexOf(max(daily.rain));
+  if (wetIdx !== -1) {
+    events.push({
+      title: "Wettest day",
+      meta: daily.labels[wetIdx],
+      body: `${fmt(daily.rain[wetIdx],1)} mm rainfall. Useful runoff and sediment-input marker.`
     });
   }
 
-  function updateTideEvents(dailyTides, tideStates) {
-    const springs = dailyTides.filter(d => tideStates[d.day] === "spring").slice(0, 6);
-    const neaps = dailyTides.filter(d => tideStates[d.day] === "neap").slice(0, 6);
-    const lines = [];
-
-    if (springs.length) {
-      lines.push("Spring-tide examples: " + springs.map(d => `${d.day} (${fmt(d.range,2)} m)`).join(", "));
-    }
-
-    if (neaps.length) {
-      lines.push("Neap-tide examples: " + neaps.map(d => `${d.day} (${fmt(d.range,2)} m)`).join(", "));
-    }
-
-    const box = document.getElementById("tideEvents");
-    box.textContent = lines.join("\n\n") || "No tide events generated.";
+  const gustIdx = daily.gustMax.indexOf(max(daily.gustMax));
+  if (gustIdx !== -1) {
+    events.push({
+      title: "Strongest gust day",
+      meta: daily.labels[gustIdx],
+      body: `${fmt(daily.gustMax[gustIdx],1)} km/h. Strong wind-energy event across the estuary.`
+    });
   }
+
+  const lowPIdx = daily.pressureMin.indexOf(min(daily.pressureMin));
+  if (lowPIdx !== -1) {
+    events.push({
+      title: "Lowest pressure event",
+      meta: daily.labels[lowPIdx],
+      body: `${fmt(daily.pressureMin[lowPIdx],1)} hPa. Likely storm-system influence.`
+    });
+  }
+
+  const rangeVals = dailyTides.map(d => d.range);
+  const maxRangeIdx = rangeVals.indexOf(max(rangeVals));
+  if (maxRangeIdx !== -1) {
+    events.push({
+      title: "Largest tidal range",
+      meta: dailyTides[maxRangeIdx].day,
+      body: `${fmt(dailyTides[maxRangeIdx].range,2)} m daily range. High tidal-energy day.`
+    });
+  }
+
+  const timeline = document.getElementById("timeline");
+  timeline.innerHTML = events.length
+    ? `<div class="side-list">${events.map(evt => `
+        <div class="side-item">
+          <div class="side-item-title">${evt.title}</div>
+          <div class="side-item-meta">${evt.meta}</div>
+          <div class="side-item-body">${evt.body}</div>
+        </div>
+      `).join("")}</div>`
+    : "No key events generated.";
+}
+function updateTideEvents(dailyTides, tideStates) {
+  const springs = dailyTides.filter(d => tideStates[d.day] === "spring");
+  const neaps = dailyTides.filter(d => tideStates[d.day] === "neap");
+
+  const biggestSpring = springs.length ? springs.reduce((a, b) => a.range > b.range ? a : b) : null;
+  const smallestNeap = neaps.length ? neaps.reduce((a, b) => a.range < b.range ? a : b) : null;
+
+  const items = [];
+
+  if (biggestSpring) {
+    items.push({
+      title: "Strongest spring-tide day",
+      meta: biggestSpring.day,
+      body: `${fmt(biggestSpring.range,2)} m tidal range. Highest spring-tide influence in the selected period.`
+    });
+  }
+
+  if (smallestNeap) {
+    items.push({
+      title: "Weakest neap-tide day",
+      meta: smallestNeap.day,
+      body: `${fmt(smallestNeap.range,2)} m tidal range. Lowest neap-tide energy in the selected period.`
+    });
+  }
+
+  const box = document.getElementById("tideEvents");
+  box.innerHTML = items.length
+    ? `<div class="side-list">${items.map(evt => `
+        <div class="side-item">
+          <div class="side-item-title">${evt.title}</div>
+          <div class="side-item-meta">${evt.meta}</div>
+          <div class="side-item-body">${evt.body}</div>
+        </div>
+      `).join("")}</div>`
+    : "No tide intelligence generated.";
+}
 
   function createCharts(series, tideReadings, extrema, surveyDates) {
     destroyCharts();
