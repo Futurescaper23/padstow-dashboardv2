@@ -16,21 +16,25 @@ export async function handler(event) {
       return jsonResponse(400, { error: "Missing start or end date" });
     }
 
-    const url = new URL("https://www.worldtides.info/api/v3");
-    url.searchParams.set("heights", "");
-    url.searchParams.set("extremes", "");
-    url.searchParams.set("datum", "CD");
-    url.searchParams.set("date", start);
-
     const startDate = new Date(start + "T00:00:00Z");
     const endDate = new Date(end + "T00:00:00Z");
     const dayCount = Math.max(1, Math.round((endDate - startDate) / 86400000) + 1);
 
+    const detailedMode = dayCount <= 31;
+
+    const url = new URL("https://www.worldtides.info/api/v3");
+    url.searchParams.set("extremes", "");
+    url.searchParams.set("datum", "CD");
+    url.searchParams.set("date", start);
     url.searchParams.set("days", String(dayCount));
-    url.searchParams.set("step", "900");
     url.searchParams.set("lat", lat);
     url.searchParams.set("lon", lon);
     url.searchParams.set("key", apiKey);
+
+    if (detailedMode) {
+      url.searchParams.set("heights", "");
+      url.searchParams.set("step", "900"); // 15 minutes
+    }
 
     const res = await fetch(url.toString());
 
@@ -44,12 +48,24 @@ export async function handler(event) {
 
     const data = await res.json();
 
-    const items = (data.heights || [])
-      .map((r) => ({
-        time: r.date || new Date(r.dt * 1000).toISOString(),
-        value: Number(r.height)
-      }))
-      .filter((r) => Number.isFinite(r.value));
+    let items = [];
+
+    if (detailedMode) {
+      items = (data.heights || [])
+        .map((r) => ({
+          time: r.date || new Date(r.dt * 1000).toISOString(),
+          value: Number(r.height)
+        }))
+        .filter((r) => Number.isFinite(r.value));
+    } else {
+      // For long ranges, use extremes as a lightweight fallback data source
+      items = (data.extremes || [])
+        .map((r) => ({
+          time: r.date || new Date(r.dt * 1000).toISOString(),
+          value: Number(r.height)
+        }))
+        .filter((r) => Number.isFinite(r.value));
+    }
 
     const extremes = (data.extremes || []).map((r) => ({
       time: r.date || new Date(r.dt * 1000).toISOString(),
@@ -60,6 +76,7 @@ export async function handler(event) {
     return jsonResponse(200, {
       source: "worldtides",
       station: data.station || "Padstow (predicted)",
+      mode: detailedMode ? "detailed" : "extremes-only",
       items,
       extremes,
       lat,
