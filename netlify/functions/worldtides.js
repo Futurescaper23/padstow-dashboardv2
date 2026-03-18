@@ -50,28 +50,35 @@ export async function handler(event) {
 
     let items = [];
 
-    if (detailedMode) {
-      items = (data.heights || [])
-        .map((r) => ({
-          time: r.date || new Date(r.dt * 1000).toISOString(),
-          value: Number(r.height)
-        }))
-        .filter((r) => Number.isFinite(r.value));
-    } else {
-      // For long ranges, use extremes as a lightweight fallback data source
-      items = (data.extremes || [])
-        .map((r) => ({
-          time: r.date || new Date(r.dt * 1000).toISOString(),
-          value: Number(r.height)
-        }))
-        .filter((r) => Number.isFinite(r.value));
-    }
+   if (detailedMode) {
+  items = (data.heights || [])
+    .map((r) => ({
+      time: Number.isFinite(r.dt)
+        ? new Date(r.dt * 1000).toISOString()
+        : new Date(r.date).toISOString(),
+      value: Number(r.height)
+    }))
+    .filter((r) => Number.isFinite(r.value) && !Number.isNaN(Date.parse(r.time)));
+} else {
+  items = (data.extremes || [])
+    .map((r) => ({
+      time: Number.isFinite(r.dt)
+        ? new Date(r.dt * 1000).toISOString()
+        : new Date(r.date).toISOString(),
+      value: Number(r.height)
+    }))
+    .filter((r) => Number.isFinite(r.value) && !Number.isNaN(Date.parse(r.time)));
+}
 
-    const extremes = (data.extremes || []).map((r) => ({
-      time: r.date || new Date(r.dt * 1000).toISOString(),
-      value: Number(r.height),
-      type: r.type
-    }));
+const extremes = (data.extremes || [])
+  .map((r) => ({
+    time: Number.isFinite(r.dt)
+      ? new Date(r.dt * 1000).toISOString()
+      : new Date(r.date).toISOString(),
+    value: Number(r.height),
+    type: r.type
+  }))
+  .filter((r) => Number.isFinite(r.value) && !Number.isNaN(Date.parse(r.time)));
 
     return jsonResponse(200, {
       source: "worldtides",
