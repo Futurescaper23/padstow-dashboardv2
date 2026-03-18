@@ -698,9 +698,11 @@ Spring and neap states are estimated from tidal range ranking within the selecte
     box.textContent = lines.join("\n\n") || "No tide events generated.";
   }
 
-  function makeSurveyTideMarkers(surveyDates, yValue) {
-    return surveyDates.map(date => ({ x: `${date}T12:00:00Z`, y: yValue }));
-  }
+function makeSurveyTideMarkers(surveyDates, yValue, start, end) {
+  return surveyDates
+    .filter(date => date >= start && date <= end)
+    .map(date => ({ x: `${date}T12:00:00Z`, y: yValue }));
+}
 
   function makeNearestLowMarkers(extremaLows, surveyDates) {
     return surveyDates.map(date => {
@@ -747,7 +749,12 @@ Spring and neap states are estimated from tidal range ranking within the selecte
           },
           {
             label: "Survey marker",
-            data: makeSurveyTideMarkers(surveyDates, tideYMax),
+           data: makeSurveyTideMarkers(
+  surveyDates,
+  tideYMax,
+  document.getElementById("startDate").value,
+  document.getElementById("endDate").value
+),
             parsing: false,
             showLine: false,
             pointRadius: 5,
