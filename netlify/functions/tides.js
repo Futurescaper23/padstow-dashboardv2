@@ -3,53 +3,29 @@ export async function handler(event) {
     const qs = event.queryStringParameters || {};
     const start = qs.start;
     const end = qs.end;
-    const station = qs.station || "49116";
 
     if (!start || !end) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders(),
-        body: JSON.stringify({ error: "Missing start or end date" }),
-      };
+      return jsonResponse(400, { error: "Missing start or end date" });
     }
 
-    // Look up the available measures for the station
-    const measuresUrl = `https://environment.data.gov.uk/flood-monitoring/id/stations/${station}/measures.json`;
-    const measuresRes = await fetch(measuresUrl);
+    // Hard-coded Padstow tidal level measure
+    const measureId =
+      "https://environment.data.gov.uk/flood-monitoring/id/measures/49116-level-tidal_level-i-15_min-mAOD";
 
-    if (!measuresRes.ok) {
-      return fail(`EA measures lookup failed: ${measuresRes.status}`);
-    }
-
-    const measuresJson = await measuresRes.json();
-    const measures = measuresJson.items || [];
-
-    // Prefer a tidal level measure if available
-    const preferred =
-      measures.find(
-        (m) =>
-          (m.parameterName || "").toLowerCase().includes("tidal level") &&
-          (m.qualifier || "").toLowerCase().includes("downstream")
-      ) ||
-      measures.find((m) =>
-        (m.parameterName || "").toLowerCase().includes("tidal level")
-      ) ||
-      measures[0];
-
-    if (!preferred || !preferred["@id"]) {
-      return fail("No suitable tide measure found");
-    }
-
-    // Fetch readings for the requested period
-    const readingsUrl = new URL(`${preferred["@id"]}/readings`);
-readingsUrl.searchParams.set("_sorted", "");
-readingsUrl.searchParams.set("startdate", start);
-readingsUrl.searchParams.set("enddate", end);
+    const readingsUrl = new URL(`${measureId}/readings`);
+    readingsUrl.searchParams.set("_sorted", "");
+    readingsUrl.searchParams.set("startdate", start);
+    readingsUrl.searchParams.set("enddate", end);
 
     const readingsRes = await fetch(readingsUrl.toString());
 
     if (!readingsRes.ok) {
-      return fail(`EA readings fetch failed: ${readingsRes.status}`);
+      const text = await readingsRes.text();
+      return jsonResponse(502, {
+        error: `EA readings fetch failed: ${readingsRes.status}`,
+        details: text,
+        url: readingsUrl.toString(),
+      });
     }
 
     const readingsJson = await readingsRes.json();
@@ -60,39 +36,28 @@ readingsUrl.searchParams.set("enddate", end);
       }))
       .filter((r) => Number.isFinite(r.value));
 
-    return {
-      statusCode: 200,
-      headers: corsHeaders(),
-      body: JSON.stringify({
-        station,
-        measure: preferred["@id"],
-        label: preferred.label || preferred.parameterName || "Tidal level",
-        items,
-      }),
-    };
+    return jsonResponse(200, {
+      station: "49116",
+      measure: measureId,
+      label: "Padstow tidal level",
+      items,
+    });
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers: corsHeaders(),
-      body: JSON.stringify({
-        error: err.message || "Unknown server error",
-      }),
-    };
+    return jsonResponse(500, {
+      error: err.message || "Unknown server error",
+      stack: err.stack || "",
+    });
   }
 }
 
-function corsHeaders() {
+function jsonResponse(statusCode, body) {
   return {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
-}
-
-function fail(message) {
-  return {
-    statusCode: 502,
-    headers: corsHeaders(),
-    body: JSON.stringify({ error: message }),
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+    body: JSON.stringify(body),
   };
 }
