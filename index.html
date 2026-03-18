@@ -320,8 +320,8 @@ Spring and neap states are estimated from tidal range ranking within the selecte
   }
 
   async function fetchHybridTides(start, end, lat, lon) {
-  return await fetchWorldTides(start, end, lat, lon);
-}
+    return await fetchWorldTides(start, end, lat, lon);
+  }
 
   function groupDaily(hourly) {
     const bucket = {};
@@ -594,6 +594,30 @@ Spring and neap states are estimated from tidal range ranking within the selecte
     return best;
   }
 
+  function makeSurveyTideMarkers(surveyDates, yValue, start, end) {
+    return surveyDates
+      .filter(date => date >= start && date <= end)
+      .map(date => ({
+        x: new Date(`${date}T12:00:00Z`).getTime(),
+        y: yValue
+      }));
+  }
+
+  function makeNearestLowMarkers(extremaLows, surveyDates, start, end) {
+    return surveyDates
+      .filter(date => date >= start && date <= end)
+      .map(date => {
+        const low = nearestLowToSurvey(extremaLows, date);
+        return low
+          ? {
+              x: new Date(low.time).getTime(),
+              y: low.value
+            }
+          : null;
+      })
+      .filter(Boolean);
+  }
+
   function updateSummary(daily, dailyTides) {
     document.getElementById("totalRain").textContent = `${fmt(sum(daily.rain), 0)} mm`;
     document.getElementById("peakGust").textContent = `${fmt(max(daily.gustMax), 1)} km/h`;
@@ -622,7 +646,7 @@ Spring and neap states are estimated from tidal range ranking within the selecte
       const tideState = tideStates[date] || "mid";
 
       lines.push(
-        `Survey ${date}: previous 7-day rainfall ${fmt(rain7,1)} mm, peak gust ${fmt(gust7,1)} km/h, lowest pressure ${fmt(lowP7,1)} hPa, daily tidal range ${tideDay ? fmt(tideDay.range,2) : "—"} m, estimated ${tideState} tide, nearest low tide ${lowText}.`
+        `Survey ${date}: prior 7-day rainfall ${fmt(rain7,1)} mm, peak gust ${fmt(gust7,1)} km/h, lowest pressure ${fmt(lowP7,1)} hPa, daily tidal range ${tideDay ? fmt(tideDay.range,2) : "—"} m, estimated ${tideState} tide, nearest low tide ${lowText}.`
       );
 
       const pill = document.createElement("span");
@@ -698,234 +722,210 @@ Spring and neap states are estimated from tidal range ranking within the selecte
     box.textContent = lines.join("\n\n") || "No tide events generated.";
   }
 
-function makeSurveyTideMarkers(surveyDates, yValue, start, end) {
-  return surveyDates
-    .filter(date => date >= start && date <= end)
-    .map(date => ({
-      x: new Date(`${date}T12:00:00Z`).getTime(),
-      y: yValue
-    }));
-}
-}
-
-function makeNearestLowMarkers(extremaLows, surveyDates, start, end) {
-  return surveyDates
-    .filter(date => date >= start && date <= end)
-    .map(date => {
-      const low = nearestLowToSurvey(extremaLows, date);
-      return low
-        ? {
-            x: new Date(low.time).getTime(),
-            y: low.value
-          }
-        : null;
-    })
-    .filter(Boolean);
-}
-
   function createCharts(series, tideReadings, extrema, surveyDates) {
-  destroyCharts();
+    destroyCharts();
 
-  const start = document.getElementById("startDate").value;
-  const end = document.getElementById("endDate").value;
+    const start = document.getElementById("startDate").value;
+    const end = document.getElementById("endDate").value;
 
-  const xMin = new Date(`${start}T00:00:00Z`).getTime();
-  const xMax = new Date(`${end}T23:59:59Z`).getTime();
+    const xMin = new Date(`${start}T00:00:00Z`).getTime();
+    const xMax = new Date(`${end}T23:59:59Z`).getTime();
 
-  const tideSeries = tideReadings
-    .map(r => ({
-      x: new Date(r.time).getTime(),
-      y: r.value
-    }))
-    .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+    const tideSeries = tideReadings
+      .map(r => ({
+        x: new Date(r.time).getTime(),
+        y: r.value
+      }))
+      .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
 
-  const lowSeries = extrema.lows
-    .map(r => ({
-      x: new Date(r.time).getTime(),
-      y: r.value
-    }))
-    .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+    const lowSeries = extrema.lows
+      .map(r => ({
+        x: new Date(r.time).getTime(),
+        y: r.value
+      }))
+      .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
 
-  const highSeries = extrema.highs
-    .map(r => ({
-      x: new Date(r.time).getTime(),
-      y: r.value
-    }))
-    .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+    const highSeries = extrema.highs
+      .map(r => ({
+        x: new Date(r.time).getTime(),
+        y: r.value
+      }))
+      .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
 
-  const tideYMax = max(tideReadings.map(r => r.value)) || 0;
+    const tideYMax = max(tideReadings.map(r => r.value)) || 0;
 
-  charts.tide = new Chart(document.getElementById("tideChart"), {
-    type: "line",
-    data: {
-      datasets: [
-        {
-          label: "Tide height (m)",
-          data: tideSeries,
-          parsing: false,
-          borderColor: "#38bdf8",
-          backgroundColor: "rgba(56,189,248,.15)",
-          pointRadius: 0,
-          borderWidth: 2,
-          tension: 0.2
-        },
-        {
-          label: "Low tide",
-          data: lowSeries,
-          parsing: false,
-          showLine: false,
-          pointRadius: 4,
-          pointBackgroundColor: "#34d399",
-          pointBorderColor: "#34d399"
-        },
-        {
-          label: "High tide",
-          data: highSeries,
-          parsing: false,
-          showLine: false,
-          pointRadius: 4,
-          pointBackgroundColor: "#fbbf24",
-          pointBorderColor: "#fbbf24"
-        },
-        {
-          label: "Survey marker",
-          data: makeSurveyTideMarkers(surveyDates, tideYMax, start, end),
-          parsing: false,
-          showLine: false,
-          pointRadius: 5,
-          pointBackgroundColor: "#fb7185",
-          pointBorderColor: "#fb7185"
-        },
-        {
-          label: "Survey low-tide match",
-          data: makeNearestLowMarkers(extrema.lows, surveyDates, start, end),
-          parsing: false,
-          showLine: false,
-          pointRadius: 5,
-          pointBackgroundColor: "#a78bfa",
-          pointBorderColor: "#a78bfa"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "nearest", intersect: false },
-      plugins: {
-        legend: { labels: { color: "#dce8ff" } }
-      },
-      scales: {
-        x: {
-          type: "time",
-          min: xMin,
-          max: xMax,
-          time: {
-            unit: "day",
-            displayFormats: {
-              day: "dd MMM"
-            }
+    charts.tide = new Chart(document.getElementById("tideChart"), {
+      type: "line",
+      data: {
+        datasets: [
+          {
+            label: "Tide height (m)",
+            data: tideSeries,
+            parsing: false,
+            borderColor: "#38bdf8",
+            backgroundColor: "rgba(56,189,248,.15)",
+            pointRadius: 0,
+            borderWidth: 2,
+            tension: 0.2
           },
-          ticks: { color: "#b9c9e7" },
-          grid: { color: "rgba(255,255,255,.05)" }
+          {
+            label: "Low tide",
+            data: lowSeries,
+            parsing: false,
+            showLine: false,
+            pointRadius: 4,
+            pointBackgroundColor: "#34d399",
+            pointBorderColor: "#34d399"
+          },
+          {
+            label: "High tide",
+            data: highSeries,
+            parsing: false,
+            showLine: false,
+            pointRadius: 4,
+            pointBackgroundColor: "#fbbf24",
+            pointBorderColor: "#fbbf24"
+          },
+          {
+            label: "Survey marker",
+            data: makeSurveyTideMarkers(surveyDates, tideYMax, start, end),
+            parsing: false,
+            showLine: false,
+            pointRadius: 5,
+            pointBackgroundColor: "#fb7185",
+            pointBorderColor: "#fb7185"
+          },
+          {
+            label: "Survey low-tide match",
+            data: makeNearestLowMarkers(extrema.lows, surveyDates, start, end),
+            parsing: false,
+            showLine: false,
+            pointRadius: 5,
+            pointBackgroundColor: "#a78bfa",
+            pointBorderColor: "#a78bfa"
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "nearest", intersect: false },
+        plugins: {
+          legend: { labels: { color: "#dce8ff" } }
         },
-        y: {
-          ticks: { color: "#b9c9e7" },
-          grid: { color: "rgba(255,255,255,.05)" }
+        scales: {
+          x: {
+            type: "time",
+            min: xMin,
+            max: xMax,
+            time: {
+              unit: "day",
+              displayFormats: {
+                day: "dd MMM"
+              }
+            },
+            ticks: { color: "#b9c9e7" },
+            grid: { color: "rgba(255,255,255,.05)" }
+          },
+          y: {
+            ticks: { color: "#b9c9e7" },
+            grid: { color: "rgba(255,255,255,.05)" }
+          }
         }
       }
-    }
-  });
+    });
 
-  charts.rainPressure = new Chart(document.getElementById("rainPressureChart"), {
-    type: "bar",
-    data: {
-      labels: series.labels,
-      datasets: [
-        { type: "bar", label: "Rainfall (mm)", data: series.rain, yAxisID: "y" },
-        { type: "line", label: "Pressure (hPa)", data: series.pressureMin, yAxisID: "y1", tension: 0.25 }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: { legend: { labels: { color: "#dce8ff" } } },
-      scales: {
-        x: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } },
-        y: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } },
-        y1: { position: "right", ticks: { color: "#b9c9e7" }, grid: { drawOnChartArea: false } }
+    charts.rainPressure = new Chart(document.getElementById("rainPressureChart"), {
+      type: "bar",
+      data: {
+        labels: series.labels,
+        datasets: [
+          { type: "bar", label: "Rainfall (mm)", data: series.rain, yAxisID: "y" },
+          { type: "line", label: "Pressure (hPa)", data: series.pressureMin, yAxisID: "y1", tension: 0.25 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { labels: { color: "#dce8ff" } } },
+        scales: {
+          x: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } },
+          y: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } },
+          y1: { position: "right", ticks: { color: "#b9c9e7" }, grid: { drawOnChartArea: false } }
+        }
       }
-    }
-  });
+    });
 
-  charts.wind = new Chart(document.getElementById("windChart"), {
-    type: "line",
-    data: {
-      labels: series.labels,
-      datasets: [
-        { label: "Mean wind (km/h)", data: series.windMean, tension: 0.25 },
-        { label: "Peak gust (km/h)", data: series.gustMax, tension: 0.25 }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: { legend: { labels: { color: "#dce8ff" } } },
-      scales: {
-        x: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } },
-        y: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } }
+    charts.wind = new Chart(document.getElementById("windChart"), {
+      type: "line",
+      data: {
+        labels: series.labels,
+        datasets: [
+          { label: "Mean wind (km/h)", data: series.windMean, tension: 0.25 },
+          { label: "Peak gust (km/h)", data: series.gustMax, tension: 0.25 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { labels: { color: "#dce8ff" } } },
+        scales: {
+          x: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } },
+          y: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } }
+        }
       }
-    }
-  });
+    });
 
-  charts.temp = new Chart(document.getElementById("tempChart"), {
-    type: "line",
-    data: {
-      labels: series.labels,
-      datasets: [
-        { label: "Mean temp (°C)", data: series.tempMean, tension: 0.25 },
-        { label: "Min temp (°C)", data: series.tempMin, tension: 0.2 },
-        { label: "Max temp (°C)", data: series.tempMax, tension: 0.2 }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: { legend: { labels: { color: "#dce8ff" } } },
-      scales: {
-        x: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } },
-        y: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } }
+    charts.temp = new Chart(document.getElementById("tempChart"), {
+      type: "line",
+      data: {
+        labels: series.labels,
+        datasets: [
+          { label: "Mean temp (°C)", data: series.tempMean, tension: 0.25 },
+          { label: "Min temp (°C)", data: series.tempMin, tension: 0.2 },
+          { label: "Max temp (°C)", data: series.tempMax, tension: 0.2 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { labels: { color: "#dce8ff" } } },
+        scales: {
+          x: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } },
+          y: { ticks: { color: "#b9c9e7" }, grid: { color: "rgba(255,255,255,.05)" } }
+        }
       }
-    }
-  });
-}
+    });
+  }
+
   async function loadData() {
-  try {
-    setStatus("Loading weather and tide…");
+    try {
+      setStatus("Loading weather and tide…");
 
-    const lat = document.getElementById("lat")?.value?.trim() || "50.5400";
-    const lon = document.getElementById("lon")?.value?.trim() || "-4.9400";
-    const start = document.getElementById("startDate")?.value;
-    const end = document.getElementById("endDate")?.value;
-    const mode = document.getElementById("viewMode")?.value || "monthly";
-    const surveyDates = parseSurveyDates();
+      const lat = document.getElementById("lat")?.value?.trim() || "50.5400";
+      const lon = document.getElementById("lon")?.value?.trim() || "-4.9400";
+      const start = document.getElementById("startDate")?.value;
+      const end = document.getElementById("endDate")?.value;
+      const mode = document.getElementById("viewMode")?.value || "monthly";
+      const surveyDates = parseSurveyDates();
 
-    if (!start || !end) throw new Error("Missing start or end date.");
+      if (!start || !end) throw new Error("Missing start or end date.");
 
-    const startObj = new Date(start + "T00:00:00Z");
-    const endObj = new Date(end + "T00:00:00Z");
-    const rangeDays = Math.round((endObj - startObj) / 86400000) + 1;
+      const startObj = new Date(start + "T00:00:00Z");
+      const endObj = new Date(end + "T00:00:00Z");
+      const rangeDays = Math.round((endObj - startObj) / 86400000) + 1;
 
-    if (rangeDays > 31) {
-      throw new Error("Please choose a date range of 31 days or less for tide loading.");
-    }
+      if (rangeDays > 31) {
+        throw new Error("Please choose a date range of 31 days or less for tide loading.");
+      }
 
-    const [weatherRaw, tidePayload] = await Promise.all([
-      fetchWeather(lat, lon, start, end),
-      fetchHybridTides(start, end, lat, lon)
-    ]);
+      const [weatherRaw, tidePayload] = await Promise.all([
+        fetchWeather(lat, lon, start, end),
+        fetchHybridTides(start, end, lat, lon)
+      ]);
 
       const tideReadings = tidePayload.items;
 
@@ -961,7 +961,7 @@ function makeNearestLowMarkers(extremaLows, surveyDates, start, end) {
       setStatus("Loaded");
     } catch (err) {
       console.error(err);
-      setStatus("Failed to load");
+      setStatus("Failed");
       alert(`Could not load the dashboard.\n\n${err.message}`);
     }
   }
