@@ -320,15 +320,8 @@ Spring and neap states are estimated from tidal range ranking within the selecte
   }
 
   async function fetchHybridTides(start, end, lat, lon) {
-    if (isRecentRange(end)) {
-      try {
-        return await fetchEaTides(start, end);
-      } catch (err) {
-        console.warn("EA recent tide fetch failed, falling back to WorldTides.", err);
-      }
-    }
-    return await fetchWorldTides(start, end, lat, lon);
-  }
+  return await fetchWorldTides(start, end, lat, lon);
+}
 
   function groupDaily(hourly) {
     const bucket = {};
