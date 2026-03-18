@@ -42,9 +42,9 @@ export async function handler(event) {
 
     // Fetch readings for the requested period
     const readingsUrl = new URL(`${preferred["@id"]}/readings`);
-    readingsUrl.searchParams.set("_sorted", "");
-    readingsUrl.searchParams.set("since", `${start}T00:00:00Z`);
-    readingsUrl.searchParams.set("until", `${end}T23:59:59Z`);
+readingsUrl.searchParams.set("_sorted", "");
+readingsUrl.searchParams.set("startdate", start);
+readingsUrl.searchParams.set("enddate", end);
 
     const readingsRes = await fetch(readingsUrl.toString());
 
