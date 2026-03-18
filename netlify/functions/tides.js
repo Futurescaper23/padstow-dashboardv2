@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FutureScaping | Padstow Estuary Conditions Interface</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#121a2b; --panel-2:#182338; --text:#eef4ff;
+      --muted:#aab7d1; --line:#273553; --accent:#7dd3fc; --accent-2:#38bdf8;
+      --good:#34d399; --warn:#fbbf24; --bad:#fb7185; --chip:#1e2b45;
+      --shadow:0 12px 30px rgba(0,0,0,.28); --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:Inter,Arial,Helvetica,sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(125,211,252,.08), transparent 22%),
+        linear-gradient(180deg, #0a1020 0%, #0b1220 100%);
+      color:var(--text);
+    }
+    .wrap{max-width:1480px;margin:0 auto;padding:24px}
+    .hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap}
+    .hero-left h1{margin:0 0 8px;font-size:clamp(28px,4vw,42px);line-height:1.05;letter-spacing:-0.02em}
+    .hero-left p{margin:0;color:var(--muted);max-width:820px;line-height:1.5;font-size:15px}
+    .brand-badge{
+      display:inline-flex;align-items:center;gap:10px;padding:9px 14px;
+      border:1px solid rgba(125,211,252,.18);background:rgba(125,211,252,.08);
+      border-radius:999px;color:#d9f5ff;margin-bottom:14px;font-size:13px;
+      letter-spacing:.04em;text-transform:uppercase
+    }
+    .brand-dot{
+      width:10px;height:10px;border-radius:999px;
+      background:linear-gradient(135deg,var(--accent),var(--accent-2));
+      box-shadow:0 0 18px rgba(56,189,248,.65)
+    }
+    .controls{
+      background:linear-gradient(180deg, rgba(18,26,43,.96), rgba(17,24,39,.94));
+      border:1px solid rgba(255,255,255,.06); box-shadow:var(--shadow);
+      border-radius:var(--radius); padding:18px;
+      display:grid; grid-template-columns:repeat(7,minmax(120px,1fr));
+      gap:14px; margin-bottom:18px
+    }
+    .field{display:flex;flex-direction:column;gap:7px}
+    .field label{font-size:12px;color:var(--muted);letter-spacing:.03em;text-transform:uppercase}
+    .field input,.field select,.field textarea{
+      width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+      border-radius:12px;padding:12px;font-size:14px;outline:none
+    }
+    .field textarea{min-height:46px;resize:vertical}
+    .actions{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+    button{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;transition:.18s ease}
+    .btn-primary{background:linear-gradient(135deg,var(--accent-2),var(--accent));color:#031522}
+    .btn-secondary{background:#1e2b45;color:var(--text);border:1px solid #31425f}
+    .summary-grid{display:grid;grid-template-columns:repeat(7,minmax(140px,1fr));gap:14px;margin-bottom:18px}
+    .card{
+      background:linear-gradient(180deg, rgba(18,26,43,.96), rgba(17,24,39,.94));
+      border:1px solid rgba(255,255,255,.06); box-shadow:var(--shadow);
+      border-radius:var(--radius); padding:16px
+    }
+    .metric .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+    .metric .value{font-size:30px;font-weight:800;line-height:1;margin-bottom:8px}
+    .metric .sub{color:var(--muted);font-size:13px;line-height:1.35}
+    .layout{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:18px}
+    .stack{display:grid;gap:18px}
+    .panel-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+    .panel-title h2{margin:0;font-size:18px;line-height:1.2}
+    .panel-title .small{color:var(--muted);font-size:13px}
+    .chart-wrap{position:relative;min-height:340px}
+    .timeline{display:grid;gap:10px}
+    .event{
+      display:grid;grid-template-columns:120px 1fr;gap:14px;padding:12px;
+      background:#152035;border:1px solid #24324f;border-radius:14px
+    }
+    .event .date{color:#d7e8ff;font-weight:700;font-size:13px}
+    .event .desc{color:var(--muted);font-size:14px;line-height:1.45}
+    .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .pill{padding:7px 10px;border-radius:999px;background:var(--chip);border:1px solid #30405f;color:#cfe3ff;font-size:12px}
+    .insights{white-space:pre-wrap;line-height:1.6;color:#dfe9fb;font-size:14px}
+    .legend-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+    .legend-item{display:flex;align-items:center;gap:8px;color:#cfe3ff;font-size:12px}
+    .legend-swatch{width:14px;height:14px;border-radius:4px;border:1px solid rgba(255,255,255,.18)}
+    @media (max-width:1200px){.controls{grid-template-columns:repeat(4,1fr)}.summary-grid{grid-template-columns:repeat(3,1fr)}.layout{grid-template-columns:1fr}}
+    @media (max-width:760px){.controls{grid-template-columns:repeat(2,1fr)}.summary-grid{grid-template-columns:repeat(2,1fr)}.event{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="hero-left">
+        <div class="brand-badge"><span class="brand-dot"></span> FutureScaping Estuary Dashboard</div>
+        <h1>Padstow Estuary Conditions Interface</h1>
+        <p>Historical weather, tide and survey-context dashboard for estuary monitoring, sediment movement interpretation and client presentation in 3DVista.</p>
+      </div>
+    </section>
+
+    <section class="controls">
+      <div class="field"><label>Location Name</label><input id="locationName" value="Padstow Harbour / Camel Estuary" /></div>
+      <div class="field"><label>Latitude</label><input id="lat" type="number" step="0.0001" value="50.5400" /></div>
+      <div class="field"><label>Longitude</label><input id="lon" type="number" step="0.0001" value="-4.9400" /></div>
+      <div class="field"><label>Start Date</label><input id="startDate" type="date" value="2025-01-01" /></div>
+      <div class="field"><label>End Date</label><input id="endDate" type="date" value="2025-12-31" /></div>
+      <div class="field">
+        <label>View Mode</label>
+        <select id="viewMode">
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+          <option value="daily">Daily</option>
+        </select>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="loadBtn">Load data</button>
+        <button class="btn-secondary" id="exportBtn">Export JSON</button>
+      </div>
+    </section>
+
+    <section class="controls" style="grid-template-columns: 2fr 1fr;">
+      <div class="field">
+        <label>Survey Dates (comma separated)</label>
+        <textarea id="surveyDates">2025-02-18, 2025-03-19, 2025-04-17, 2025-05-21, 2025-06-18, 2025-07-16, 2025-08-20, 2025-09-17, 2025-10-15, 2025-11-19, 2025-12-10</textarea>
+      </div>
+      <div class="field"><label>Status</label><input id="statusBox" value="Ready" readonly /></div>
+    </section>
+
+    <section class="summary-grid">
+      <div class="card metric"><div class="label">Total Rainfall</div><div class="value" id="totalRain">—</div><div class="sub">Across selected date range</div></div>
+      <div class="card metric"><div class="label">Peak Wind Gust</div><div class="value" id="peakGust">—</div><div class="sub">Strongest gust recorded</div></div>
+      <div class="card metric"><div class="label">Lowest Pressure</div><div class="value" id="lowPressure">—</div><div class="sub">Storm-pressure marker</div></div>
+      <div class="card metric"><div class="label">Mean Temperature</div><div class="value" id="meanTemp">—</div><div class="sub">Average air temperature</div></div>
+      <div class="card metric"><div class="label">Storm-Like Days</div><div class="value" id="stormDays">—</div><div class="sub">Wind / rain / pressure trigger days</div></div>
+      <div class="card metric"><div class="label">Prevailing Wind</div><div class="value" id="prevailingWind">—</div><div class="sub">Dominant direction across range</div></div>
+      <div class="card metric"><div class="label">Max Tidal Range</div><div class="value" id="maxTidalRange">—</div><div class="sub">Largest daily tide range</div></div>
+    </section>
+
+    <section class="layout">
+      <div class="stack">
+        <div class="card">
+          <div class="panel-title"><h2>Tide Height & Survey Windows</h2><div class="small">Environment Agency Padstow gauge (auto)</div></div>
+          <div class="chart-wrap"><canvas id="tideChart"></canvas></div>
+          <div class="legend-row">
+            <div class="legend-item"><span class="legend-swatch" style="background:#38bdf8"></span>Tide height</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#34d399"></span>Low tide</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#fbbf24"></span>High tide</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#fb7185"></span>Survey marker</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#a78bfa"></span>Nearest low-tide match</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="panel-title"><h2>Rainfall & Pressure Context</h2><div class="small">Rainfall totals and mean sea-level pressure</div></div>
+          <div class="chart-wrap"><canvas id="rainPressureChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="panel-title"><h2>Wind Speed & Gust Profile</h2><div class="small">Mean wind and strongest gusts</div></div>
+          <div class="chart-wrap"><canvas id="windChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="panel-title"><h2>Temperature Profile</h2><div class="small">Mean air temperature and daily range</div></div>
+          <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <div class="panel-title"><h2>Survey Window Summary</h2><div class="small">Interpretation notes for reporting and 3DVista embedding</div></div>
+          <div id="insights" class="insights">Load data to generate insight notes.</div>
+          <div class="pill-row" id="surveyPills"></div>
+        </div>
+        <div class="card">
+          <div class="panel-title"><h2>Environmental Timeline</h2><div class="small">Largest events and likely sediment drivers</div></div>
+          <div id="timeline" class="timeline"></div>
+        </div>
+        <div class="card">
+          <div class="panel-title"><h2>Tide Events</h2><div class="small">Detected highs/lows and spring-neap context</div></div>
+          <div id="tideEvents" class="insights">Load data to generate tide event notes.</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const charts = {};
+    const EA_STATION = "49116";
+
+    function setStatus(msg){ document.getElementById("statusBox").value = msg; }
+    function parseSurveyDates(){ return document.getElementById("surveyDates").value.split(",").map(s => s.trim()).filter(Boolean); }
+    function destroyCharts(){ Object.values(charts).forEach(ch => ch?.destroy?.()); }
+    function mean(arr){ const c=arr.filter(Number.isFinite); return c.length ? c.reduce((a,b)=>a+b,0)/c.length : null; }
+    function sum(arr){ const c=arr.filter(Number.isFinite); return c.length ? c.reduce((a,b)=>a+b,0) : 0; }
+    function max(arr){ const c=arr.filter(Number.isFinite); return c.length ? Math.max(...c) : null; }
+    function min(arr){ const c=arr.filter(Number.isFinite); return c.length ? Math.min(...c) : null; }
+    function fmt(n,d=1){ return Number.isFinite(n) ? n.toFixed(d) : "—"; }
+    function directionToCompass(deg){
+      if (!Number.isFinite(deg)) return "—";
+      const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+      return dirs[Math.round(deg / 22.5) % 16];
+    }
+    function getDayKey(s){ return s.slice(0,10); }
+
+    function groupDaily(hourly){
+      const bucket = {};
+      hourly.time.forEach((t,i)=>{
+        const day = getDayKey(t);
+        if (!bucket[day]) bucket[day] = { rain:0,temp:[],wind:[],gust:[],dirX:[],dirY:[],pressure:[] };
+        const dir = hourly.winddirection_10m[i];
+        const rad = Number.isFinite(dir) ? dir*Math.PI/180 : null;
+        bucket[day].rain += hourly.precipitation[i] || 0;
+        if (Number.isFinite(hourly.temperature_2m[i])) bucket[day].temp.push(hourly.temperature_2m[i]);
+        if (Number.isFinite(hourly.windspeed_10m[i])) bucket[day].wind.push(hourly.windspeed_10m[i]);
+        if (Number.isFinite(hourly.windgusts_10m[i])) bucket[day].gust.push(hourly.windgusts_10m[i]);
+        if (Number.isFinite(hourly.pressure_msl[i])) bucket[day].pressure.push(hourly.pressure_msl[i]);
+        if (rad !== null){ bucket[day].dirX.push(Math.cos(rad)); bucket[day].dirY.push(Math.sin(rad)); }
+      });
+      const labels = Object.keys(bucket).sort();
+      return {
+        labels,
+        rain: labels.map(d=>bucket[d].rain),
+        tempMean: labels.map(d=>mean(bucket[d].temp)),
+        tempMin: labels.map(d=>Math.min(...bucket[d].temp)),
+        tempMax: labels.map(d=>Math.max(...bucket[d].temp)),
+        windMean: labels.map(d=>mean(bucket[d].wind)),
+        gustMax: labels.map(d=>max(bucket[d].gust)),
+        pressureMin: labels.map(d=>min(bucket[d].pressure)),
+        windDirMean: labels.map(d=>{
+          const x=mean(bucket[d].dirX), y=mean(bucket[d].dirY);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+          let deg = Math.atan2(y,x)*180/Math.PI;
+          if (deg < 0) deg += 360;
+          return deg;
+        })
+      };
+    }
+
+    function groupWeekly(daily){
+      const bucket = {};
+      daily.labels.forEach((day,i)=>{
+        const date = new Date(day + "T00:00:00");
+        const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = tmp.getUTCDay() || 7;
+        tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(),0,1));
+        const weekNo = Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+        const key = `${tmp.getUTCFullYear()}-W${String(weekNo).padStart(2,"0")}`;
+        if (!bucket[key]) bucket[key] = { rain:0,tempMean:[],tempMin:[],tempMax:[],windMean:[],gustMax:[],pressureMin:[],windDirX:[],windDirY:[] };
+        bucket[key].rain += daily.rain[i] || 0;
+        if (Number.isFinite(daily.tempMean[i])) bucket[key].tempMean.push(daily.tempMean[i]);
+        if (Number.isFinite(daily.tempMin[i])) bucket[key].tempMin.push(daily.tempMin[i]);
+        if (Number.isFinite(daily.tempMax[i])) bucket[key].tempMax.push(daily.tempMax[i]);
+        if (Number.isFinite(daily.windMean[i])) bucket[key].windMean.push(daily.windMean[i]);
+        if (Number.isFinite(daily.gustMax[i])) bucket[key].gustMax.push(daily.gustMax[i]);
+        if (Number.isFinite(daily.pressureMin[i])) bucket[key].pressureMin.push(daily.pressureMin[i]);
+        const dir = daily.windDirMean[i];
+        if (Number.isFinite(dir)) {
+          const rad = dir*Math.PI/180;
+          bucket[key].windDirX.push(Math.cos(rad));
+          bucket[key].windDirY.push(Math.sin(rad));
+        }
+      });
+      const labels = Object.keys(bucket).sort();
+      return {
+        labels,
+        rain: labels.map(k=>bucket[k].rain),
+        tempMean: labels.map(k=>mean(bucket[k].tempMean)),
+        tempMin: labels.map(k=>min(bucket[k].tempMin)),
+        tempMax: labels.map(k=>max(bucket[k].tempMax)),
+        windMean: labels.map(k=>mean(bucket[k].windMean)),
+        gustMax: labels.map(k=>max(bucket[k].gustMax)),
+        pressureMin: labels.map(k=>min(bucket[k].pressureMin)),
+        windDirMean: labels.map(k=>{
+          const x=mean(bucket[k].windDirX), y=mean(bucket[k].windDirY);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+          let deg = Math.atan2(y,x)*180/Math.PI;
+          if (deg < 0) deg += 360;
+          return deg;
+        })
+      };
+    }
+
+    function groupMonthly(daily){
+      const bucket = {};
+      daily.labels.forEach((day,i)=>{
+        const month = day.slice(0,7);
+        if (!bucket[month]) bucket[month] = { rain:0,tempMean:[],tempMin:[],tempMax:[],windMean:[],gustMax:[],pressureMin:[],windDirX:[],windDirY:[] };
+        bucket[month].rain += daily.rain[i] || 0;
+        if (Number.isFinite(daily.tempMean[i])) bucket[month].tempMean.push(daily.tempMean[i]);
+        if (Number.isFinite(daily.tempMin[i])) bucket[month].tempMin.push(daily.tempMin[i]);
+        if (Number.isFinite(daily.tempMax[i])) bucket[month].tempMax.push(daily.tempMax[i]);
+        if (Number.isFinite(daily.windMean[i])) bucket[month].windMean.push(daily.windMean[i]);
+        if (Number.isFinite(daily.gustMax[i])) bucket[month].gustMax.push(daily.gustMax[i]);
+        if (Number.isFinite(daily.pressureMin[i])) bucket[month].pressureMin.push(daily.pressureMin[i]);
+        const dir = daily.windDirMean[i];
+        if (Number.isFinite(dir)) {
+          const rad = dir*Math.PI/180;
+          bucket[month].windDirX.push(Math.cos(rad));
+          bucket[month].windDirY.push(Math.sin(rad));
+        }
+      });
+      const labels = Object.keys(bucket).sort();
+      return {
+        labels,
+        rain: labels.map(k=>bucket[k].rain),
+        tempMean: labels.map(k=>mean(bucket[k].tempMean)),
+        tempMin: labels.map(k=>min(bucket[k].tempMin)),
+        tempMax: labels.map(k=>max(bucket[k].tempMax)),
+        windMean: labels.map(k=>mean(bucket[k].windMean)),
+        gustMax: labels.map(k=>max(bucket[k].gustMax)),
+        pressureMin: labels.map(k=>min(bucket[k].pressureMin)),
+        windDirMean: labels.map(k=>{
+          const x=mean(bucket[k].windDirX), y=mean(bucket[k].windDirY);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+          let deg = Math.atan2(y,x)*180/Math.PI;
+          if (deg < 0) deg += 360;
+          return deg;
+        })
+      };
+    }
+
+    async function fetchWeather(lat, lon, start, end){
+      const url = new URL("https://archive-api.open-meteo.com/v1/archive");
+      url.searchParams.set("latitude", lat);
+      url.searchParams.set("longitude", lon);
+      url.searchParams.set("start_date", start);
+      url.searchParams.set("end_date", end);
+      url.searchParams.set("hourly", "temperature_2m,precipitation,windspeed_10m,windgusts_10m,winddirection_10m,pressure_msl");
+      url.searchParams.set("timezone", "Europe/London");
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Weather API error ${res.status}`);
+      const data = await res.json();
+      if (!data.hourly?.time?.length) throw new Error("No weather data returned");
+      return data;
+    }
+
+    async function fetchTides(start, end){
+      const url = new URL("/.netlify/functions/tides", window.location.origin);
+      url.searchParams.set("station", EA_STATION);
+      url.searchParams.set("start", start);
+      url.searchParams.set("end", end);
+      const res = await fetch(url);
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Tide function error ${res.status}: ${txt}`);
+      }
+      const data = await res.json();
+      if (!data.items?.length) throw new Error("No tide data returned");
+      return data.items;
+    }
+
+    function detectTideExtrema(readings){
+      const lows=[], highs=[];
+      for (let i=1;i<readings.length-1;i++){
+        const prev=readings[i-1].value, curr=readings[i].value, next=readings[i+1].value;
+        if (curr <= prev && curr < next) lows.push(readings[i]);
+        if (curr >= prev && curr > next) highs.push(readings[i]);
+      }
+      return { lows, highs };
+    }
+
+    function buildDailyTideSummary(readings, extrema){
+      const byDay = {};
+      readings.forEach(r=>{
+        const day = getDayKey(r.time);
+        if (!byDay[day]) byDay[day] = { vals:[] };
+        byDay[day].vals.push(r.value);
+      });
+      const lowByDay = {};
+      extrema.lows.forEach(r=>{ const d=getDayKey(r.time); if (!lowByDay[d] || r.value < lowByDay[d].value) lowByDay[d]=r; });
+      const highByDay = {};
+      extrema.highs.forEach(r=>{ const d=getDayKey(r.time); if (!highByDay[d] || r.value > highByDay[d].value) highByDay[d]=r; });
+      return Object.keys(byDay).sort().map(day=>({
+        day,
+        min:min(byDay[day].vals),
+        max:max(byDay[day].vals),
+        range:max(byDay[day].vals)-min(byDay[day].vals),
+        low:lowByDay[day] || null,
+        high:highByDay[day] || null
+      }));
+    }
+
+    function classifySpringNeap(dailyTides){
+      const ranges = dailyTides.map(d=>d.range).filter(Number.isFinite).sort((a,b)=>a-b);
+      const lowThresh = ranges[Math.floor(ranges.length*0.25)] ?? null;
+      const highThresh = ranges[Math.floor(ranges.length*0.75)] ?? null;
+      const map = {};
+      dailyTides.forEach(d=>{
+        let state="mid";
+        if (highThresh !== null && d.range >= highThresh) state="spring";
+        else if (lowThresh !== null && d.range <= lowThresh) state="neap";
+        map[d.day] = state;
+      });
+      return map;
+    }
+
+    function nearestLowToSurvey(extremaLows, surveyDate){
+      const target = new Date(surveyDate + "T12:00:00Z").getTime();
+      let best=null, bestDiff=Infinity;
+      extremaLows.forEach(l=>{
+        const diff = Math.abs(new Date(l.time).getTime() - target);
+        if (diff < bestDiff){ bestDiff = diff; best = l; }
+      });
+      return best;
+    }
+
+    function updateSummary(daily, dailyTides){
+      document.getElementById("totalRain").textContent = `${fmt(sum(daily.rain),0)} mm`;
+      document.getElementById("peakGust").textContent = `${fmt(max(daily.gustMax),1)} km/h`;
+      document.getElementById("lowPressure").textContent = `${fmt(min(daily.pressureMin),1)} hPa`;
+      document.getElementById("meanTemp").textContent = `${fmt(mean(daily.tempMean),1)} °C`;
+      document.getElementById("stormDays").textContent = `${daily.labels.filter((_,i)=>daily.gustMax[i]>=45 || daily.rain[i]>=15 || daily.pressureMin[i]<=995).length}`;
+      document.getElementById("prevailingWind").textContent = directionToCompass(mean(daily.windDirMean.filter(Number.isFinite)));
+      document.getElementById("maxTidalRange").textContent = `${fmt(max(dailyTides.map(d=>d.range)),2)} m`;
+    }
+
+    function updateInsights(daily, dailyTides, tideStates, extrema, surveyDates){
+      const pills = document.getElementById("surveyPills");
+      pills.innerHTML = "";
+      const lines = [];
+      surveyDates.forEach(date=>{
+        const idx = daily.labels.indexOf(date);
+        const rain7 = idx >= 0 ? sum(daily.rain.slice(Math.max(0, idx-6), idx+1)) : null;
+        const gust7 = idx >= 0 ? max(daily.gustMax.slice(Math.max(0, idx-6), idx+1)) : null;
+        const lowP7 = idx >= 0 ? min(daily.pressureMin.slice(Math.max(0, idx-6), idx+1)) : null;
+        const tideDay = dailyTides.find(d=>d.day===date);
+        const nearestLow = nearestLowToSurvey(extrema.lows, date);
+        const tideState = tideStates[date] || "mid";
+        const lowText = nearestLow
+          ? new Date(nearestLow.time).toLocaleString("en-GB", { dateStyle:"short", timeStyle:"short", timeZone:"Europe/London" })
+          : "n/a";
+        lines.push(`Survey ${date}: previous 7-day rainfall ${fmt(rain7,1)} mm, peak gust ${fmt(gust7,1)} km/h, lowest pressure ${fmt(lowP7,1)} hPa, daily tidal range ${tideDay ? fmt(tideDay.range,2) : "—"} m, estimated ${tideState} tide, nearest low tide ${lowText}.`);
+        const pill = document.createElement("span");
+        pill.className = "pill";
+        pill.textContent = `${date} • ${tideState}`;
+        pills.appendChild(pill);
+      });
+      document.getElementById("insights").textContent = lines.join("\n");
+    }
+
+    function updateTimeline(daily, dailyTides){
+      const events = [];
+      const wetIdx = daily.rain.indexOf(max(daily.rain));
+      if (wetIdx !== -1) events.push({ date: daily.labels[wetIdx], desc: `Wettest day with ${fmt(daily.rain[wetIdx],1)} mm rainfall.` });
+      const gustIdx = daily.gustMax.indexOf(max(daily.gustMax));
+      if (gustIdx !== -1) events.push({ date: daily.labels[gustIdx], desc: `Strongest gust day with ${fmt(daily.gustMax[gustIdx],1)} km/h.` });
+      const lowPIdx = daily.pressureMin.indexOf(min(daily.pressureMin));
+      if (lowPIdx !== -1) events.push({ date: daily.labels[lowPIdx], desc: `Lowest pressure day at ${fmt(daily.pressureMin[lowPIdx],1)} hPa.` });
+      const rangeVals = dailyTides.map(d=>d.range);
+      const maxRangeIdx = rangeVals.indexOf(max(rangeVals));
+      if (maxRangeIdx !== -1) events.push({ date: dailyTides[maxRangeIdx].day, desc: `Largest daily tidal range of ${fmt(dailyTides[maxRangeIdx].range,2)} m.` });
+
+      const timeline = document.getElementById("timeline");
+      timeline.innerHTML = "";
+      events.forEach(evt=>{
+        const el = document.createElement("div");
+        el.className = "event";
+        el.innerHTML = `<div class="date">${evt.date}</div><div class="desc">${evt.desc}</div>`;
+        timeline.appendChild(el);
+      });
+    }
+
+    function updateTideEvents(dailyTides, tideStates){
+      const springs = dailyTides.filter(d=>tideStates[d.day]==="spring").slice(0,6);
+      const neaps = dailyTides.filter(d=>tideStates[d.day]==="neap").slice(0,6);
+      const lines = [];
+      if (springs.length) lines.push("Spring-tide examples: " + springs.map(d=>`${d.day} (${fmt(d.range,2)} m)`).join(", "));
+      if (neaps.length) lines.push("Neap-tide examples: " + neaps.map(d=>`${d.day} (${fmt(d.range,2)} m)`).join(", "));
+      document.getElementById("tideEvents").textContent = lines.join("\n\n") || "No tide events generated.";
+    }
+
+    function makeSurveyMarkers(surveyDates, yValue){
+      return surveyDates.map(date=>({ x:`${date}T12:00:00Z`, y:yValue }));
+    }
+
+    function makeNearestLowMarkers(extremaLows, surveyDates){
+      return surveyDates.map(date=>{
+        const low = nearestLowToSurvey(extremaLows, date);
+        return low ? { x:low.time, y:low.value } : null;
+      }).filter(Boolean);
+    }
+
+    function createCharts(series, tideReadings, extrema, surveyDates){
+      destroyCharts();
+      const tideYMax = max(tideReadings.map(r=>r.value)) || 0;
+
+      charts.tide = new Chart(document.getElementById("tideChart"), {
+        type:"line",
+        data:{
+          datasets:[
+            { label:"Tide height (m)", data:tideReadings.map(r=>({x:r.time,y:r.value})), parsing:false, borderColor:"#38bdf8", pointRadius:0, tension:.2 },
+            { label:"Low tide", data:extrema.lows.map(r=>({x:r.time,y:r.value})), parsing:false, showLine:false, pointRadius:4, pointBackgroundColor:"#34d399" },
+            { label:"High tide", data:extrema.highs.map(r=>({x:r.time,y:r.value})), parsing:false, showLine:false, pointRadius:4, pointBackgroundColor:"#fbbf24" },
+            { label:"Survey marker", data:makeSurveyMarkers(surveyDates, tideYMax), parsing:false, showLine:false, pointRadius:5, pointBackgroundColor:"#fb7185" },
+            { label:"Survey low-tide match", data:makeNearestLowMarkers(extrema.lows, surveyDates), parsing:false, showLine:false, pointRadius:5, pointBackgroundColor:"#a78bfa" }
+          ]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ labels:{ color:"#dce8ff" } } },
+          scales:{
+            x:{ type:"time", time:{ unit:"day" }, ticks:{ color:"#b9c9e7" }, grid:{ color:"rgba(255,255,255,.05)" } },
+            y:{ ticks:{ color:"#b9c9e7" }, grid:{ color:"rgba(255,255,255,.05)" } }
+          }
+        }
+      });
+
+      charts.rainPressure = new Chart(document.getElementById("rainPressureChart"), {
+        type:"bar",
+        data:{ labels:series.labels, datasets:[
+          { type:"bar", label:"Rainfall (mm)", data:series.rain, yAxisID:"y" },
+          { type:"line", label:"Pressure (hPa)", data:series.pressureMin, yAxisID:"y1", tension:0.25 }
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:"#dce8ff" } } }, scales:{
+          x:{ ticks:{ color:"#b9c9e7" }, grid:{ color:"rgba(255,255,255,.05)" } },
+          y:{ ticks:{ color:"#b9c9e7" }, grid:{ color:"rgba(255,255,255,.05)" } },
+          y1:{ position:"right", ticks:{ color:"#b9c9e7" }, grid:{ drawOnChartArea:false } }
+        }}
+      });
+
+      charts.wind = new Chart(document.getElementById("windChart"), {
+        type:"line",
+        data:{ labels:series.labels, datasets:[
+          { label:"Mean wind (km/h)", data:series.windMean, tension:0.25 },
+          { label:"Peak gust (km/h)", data:series.gustMax, tension:0.25 }
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:"#dce8ff" } } }, scales:{
+          x:{ ticks:{ color:"#b9c9e7" }, grid:{ color:"rgba(255,255,255,.05)" } },
+          y:{ ticks:{ color:"#b9c9e7" }, grid:{ color:"rgba(255,255,255,.05)" } }
+        }}
+      });
+
+      charts.temp = new Chart(document.getElementById("tempChart"), {
+        type:"line",
+        data:{ labels:series.labels, datasets:[
+          { label:"Mean temp (°C)", data:series.tempMean, tension:0.25 },
+          { label:"Min temp (°C)", data:series.tempMin, tension:0.2 },
+          { label:"Max temp (°C)", data:series.tempMax, tension:0.2 }
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:"#dce8ff" } } }, scales:{
+          x:{ ticks:{ color:"#b9c9e7" }, grid:{ color:"rgba(255,255,255,.05)" } },
+          y:{ ticks:{ color:"#b9c9e7" }, grid:{ color:"rgba(255,255,255,.05)" } }
+        }}
+      });
+    }
+
+    async function loadData(){
+      try {
+        setStatus("Loading weather and tide…");
+        const lat = document.getElementById("lat").value.trim();
+        const lon = document.getElementById("lon").value.trim();
+        const start = document.getElementById("startDate").value;
+        const end = document.getElementById("endDate").value;
+        const mode = document.getElementById("viewMode").value;
+        const surveyDates = parseSurveyDates();
+
+        const [weatherRaw, tideReadings] = await Promise.all([
+          fetchWeather(lat, lon, start, end),
+          fetchTides(start, end)
+        ]);
+
+        const daily = groupDaily(weatherRaw.hourly);
+        const series = mode === "daily" ? daily : mode === "weekly" ? groupWeekly(daily) : groupMonthly(daily);
+        const extrema = detectTideExtrema(tideReadings);
+        const dailyTides = buildDailyTideSummary(tideReadings, extrema);
+        const tideStates = classifySpringNeap(dailyTides);
+
+        updateSummary(daily, dailyTides);
+        updateInsights(daily, dailyTides, tideStates, extrema, surveyDates);
+        updateTimeline(daily, dailyTides);
+        updateTideEvents(dailyTides, tideStates);
+        createCharts(series, tideReadings, extrema, surveyDates);
+
+        window.__estuaryDashboardData = { weatherRaw, tideReadings, daily, series, dailyTides, tideStates };
+        setStatus("Loaded");
+      } catch (err) {
+        console.error(err);
+        setStatus("Failed to load");
+        alert(`Could not load the dashboard.\n\n${err.message}`);
+      }
+    }
+
+    function exportJson(){
+      if (!window.__estuaryDashboardData) return alert("Load data first.");
+      const blob = new Blob([JSON.stringify(window.__estuaryDashboardData, null, 2)], { type:"application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "padstow-estuary-dashboard-data.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    document.getElementById("loadBtn").addEventListener("click", loadData);
+    document.getElementById("exportBtn").addEventListener("click", exportJson);
+    window.addEventListener("load", loadData);
+  </script>
+</body>
+</html>
