@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>FutureScaping | Padstow Estuary Conditions Interface</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <style>
     :root{
       --bg:#0b1220;
@@ -125,7 +126,7 @@
     <section class="layout">
       <div class="stack">
         <div class="card">
-          <div class="panel-title"><h2>Tide Height & Survey Windows</h2><div class="small">Environment Agency Padstow gauge (auto)</div></div>
+         <div class="panel-title"><h2>Tide Height & Survey Windows</h2><div class="small" id="tideSourceLabel">Tide source loading…</div></div>
           <div class="chart-wrap"><canvas id="tideChart"></canvas></div>
           <div class="legend-row">
             <div class="legend-item"><span class="legend-swatch" style="background:#38bdf8"></span>Tide height</div>
