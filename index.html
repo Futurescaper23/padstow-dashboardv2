@@ -802,11 +802,27 @@ Survey dates are matched against the nearest low-tide conditions, with tide stat
     : "No key events generated.";
 }
 function updateTideEvents(dailyTides, tideStates) {
-  const springs = dailyTides.filter(d => tideStates[d.day] === "spring");
-  const neaps = dailyTides.filter(d => tideStates[d.day] === "neap");
+  const start = document.getElementById("startDate")?.value;
+  const end = document.getElementById("endDate")?.value;
 
-  const biggestSpring = springs.length ? springs.reduce((a, b) => a.range > b.range ? a : b) : null;
-  const smallestNeap = neaps.length ? neaps.reduce((a, b) => a.range < b.range ? a : b) : null;
+  const validDays = dailyTides.filter(d =>
+    d.day >= start &&
+    d.day <= end &&
+    d.low &&
+    d.high &&
+    Number.isFinite(d.range)
+  );
+
+  const springs = validDays.filter(d => tideStates[d.day] === "spring");
+  const neaps = validDays.filter(d => tideStates[d.day] === "neap");
+
+  const biggestSpring = springs.length
+    ? springs.reduce((a, b) => a.range > b.range ? a : b)
+    : null;
+
+  const smallestNeap = neaps.length
+    ? neaps.reduce((a, b) => a.range < b.range ? a : b)
+    : null;
 
   const items = [];
 
